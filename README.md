@@ -28,7 +28,7 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 
 - [x] **Phase 1 — Scaffold + tooling skeleton** (`/api/v1/health`, force-JSON, error envelope, pint/phpstan/pest)
 - [x] **Phase 2 — DB connection + `users` migration + Eloquent model** (MySQL `test`, `App\Domain\User\Models\User`, `UserResource`, factory, soft-delete + uuid/email unique)
-- [ ] Phase 3 — Docker compose, nginx, joined to `bbm` network as `test_api_webserver`
+- [x] **Phase 3 — Docker compose + nginx, joined to `bbm`** (`test_api_webserver:8000` ↔ host `:8009`, php-fpm 8.4 alpine, MySQL via bbm DNS `docker-mysql-1`, healthcheck green)
 - [ ] Phase 4 — JWT verification middleware (Entra JWKS, no DB)
 - [ ] Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/me`
 - [ ] Phase 6 — Hardening (error mapping, request id, CORS, throttle, ready probe)
@@ -65,20 +65,57 @@ routes/
 
 ## Local setup
 
-Prereqs: PHP 8.3+, Composer 2, MySQL 9 listening on 127.0.0.1:3306 with the
-`test` database created and `root`/`rootpass`.
+Prereqs: PHP 8.3+, Composer 2, and one of:
+  - **Host MySQL 8** on `127.0.0.1:3306` with `test` db + `root`/`rootpass`, or
+  - **Docker MySQL** at `docker-mysql-1` on the shared `bbm` network (this is
+    what the existing `auth_service` compose project provisions).
+
+### Option A — host PHP (`php artisan serve`)
 
 ```bash
 cp .env.example .env
 composer install
 php artisan key:generate
+php artisan migrate
 
-# Phase 1 only: this works without MySQL because /api/v1/health does no I/O.
 php artisan serve --port=8009
-
-# Other terminal:
+# other terminal:
 curl -s http://localhost:8009/api/v1/health | jq
 ```
+
+### Option B — `docker compose` (joins the shared `bbm` network)
+
+```bash
+# 0) one-time: ensure the shared bridge exists (auth_service compose creates it)
+docker network inspect bbm >/dev/null 2>&1 || docker network create bbm
+
+# 1) build + boot
+docker compose up --build -d
+docker compose logs -f test_api_php
+
+# 2) verify all three reach paths
+curl -s http://localhost:8009/api/v1/health                         # host
+docker run --rm --network bbm curlimages/curl \
+    -s http://test_api_webserver:8000/api/v1/health                 # bbm peer
+docker compose exec test_api_php php artisan migrate:status         # MySQL via bbm DNS
+
+# stop without losing the vendor/ named volume:
+docker compose down
+# wipe everything (slower next boot):
+docker compose down -v
+```
+
+What compose does:
+
+- bind-mounts the project so edits hit php-fpm on next request;
+- keeps `vendor/` on a **named volume** so the macOS-built host vendor never
+  shadows the linux-built one inside the container;
+- joins the external `bbm` bridge so we can reach `docker-mysql-1` and be
+  reached as `http://test_api_webserver:8000` by `test_frontend`'s BFF;
+- the php container's compose `environment:` block overrides `DB_HOST` to
+  `docker-mysql-1` (Laravel's dotenv is `Dotenv::createImmutable()`, so any
+  variable already in `process.env` wins over the `.env` file — same trick
+  test_frontend uses).
 
 ## Scripts
 

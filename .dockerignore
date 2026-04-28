@@ -1,0 +1,54 @@
+## ============================================================================
+## .dockerignore for test_api
+## ============================================================================
+## The php-fpm image deliberately doesn't COPY the source in (the dev compose
+## file bind-mounts it). This file still matters for `docker build` cache
+## invalidation: anything not ignored becomes part of the build context.
+## ============================================================================
+
+.git
+.github
+.gitignore
+.gitattributes
+.editorconfig
+
+.idea
+.vscode
+.zed
+.cursor
+.phpactor.json
+.phpunit.cache
+.phpunit.result.cache
+.phpstan.cache
+
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+storage/debugbar
+bootstrap/cache/*
+!storage/logs/.gitignore
+!storage/framework/cache/.gitignore
+!storage/framework/sessions/.gitignore
+!storage/framework/views/.gitignore
+!bootstrap/cache/.gitignore
+
+vendor/
+node_modules/
+public/build/
+public/hot/
+public/storage
+
+.env
+.env.*.local
+.env.backup
+.env.production
+
+tests/Browser/screenshots
+tests/Browser/console
+tests/Browser/source
+
+README.md
+AGENTS.md
+CHANGELOG.md
