@@ -35,6 +35,23 @@ final readonly class AuthClaims
     ) {}
 
     /**
+     * Ordered fallback claim names to try when the primary email claim is
+     * missing. Covers Entra v2.0 (`email` / `preferred_username`) and v1.0
+     * (`unique_name` / `upn`) without per-token-version conditional logic.
+     *
+     * Order is from "most likely to be the real email" to "least":
+     *   - preferred_username: v2.0 OIDC standard, often the user-typed address
+     *   - unique_name:        v1.0 default; for CIAM users this is typically
+     *                         the actual sign-in address
+     *   - upn:                v1.0; for CIAM external users this is often a
+     *                         synthetic `<oid>@<tenant>.onmicrosoft.com`, so
+     *                         we try it last
+     *
+     * @var list<string>
+     */
+    private const EMAIL_FALLBACK_CLAIMS = ['preferred_username', 'unique_name', 'upn'];
+
+    /**
      * Build from the decoded JWT payload (`stdClass`) returned by
      * firebase/php-jwt, applying the configured claim-name mapping.
      *
@@ -51,9 +68,18 @@ final readonly class AuthClaims
 
         $email = self::stringClaim($payload, $claimNames['email']);
         if ($email === null || $email === '') {
-            // Some Entra tokens put the address under `preferred_username`
-            // when `email` is unscoped — try that as a graceful fallback.
-            $email = self::stringClaim($payload, 'preferred_username');
+            // Walk the fallback chain. Skip any name that's already the
+            // primary claim so we don't double-check the same field.
+            foreach (self::EMAIL_FALLBACK_CLAIMS as $fallback) {
+                if ($fallback === $claimNames['email']) {
+                    continue;
+                }
+                $candidate = self::stringClaim($payload, $fallback);
+                if ($candidate !== null && $candidate !== '') {
+                    $email = $candidate;
+                    break;
+                }
+            }
         }
         if ($email === null || $email === '') {
             throw InvalidJwtException::missingClaim($claimNames['email']);

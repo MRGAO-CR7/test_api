@@ -12,17 +12,25 @@ use Illuminate\Http\Client\Factory as HttpFactory;
 use Throwable;
 
 /**
- * Fetches the issuer's JWKS document and caches the parsed key set.
+ * Fetches the issuer's JWKS document and caches it.
  *
- * Why we cache aggressively (default 1h):
+ * Cache strategy
+ * --------------
+ * We cache the **raw JWKS JSON document** (a plain array of scalars + arrays)
+ * — NOT the `Firebase\JWT\Key` objects. The reason is critical:
  *
- *   - JWKS rotation is rare and well-announced. The cost of a remote fetch
- *     on every request would be huge.
- *   - On a signature failure the verifier calls `flush()` and retries once,
- *     so an unannounced rotation only affects a single request.
+ *   `Key` wraps an `OpenSSLAsymmetricKey` resource, which PHP REFUSES to
+ *   serialize. Putting Key objects into Laravel's file/redis/database cache
+ *   would silently fail on `serialize()` and re-fetch on every request,
+ *   completely defeating the cache.
+ *
+ * So:
+ *   - Cache miss  -> HTTP GET the JWKS, store the *array* in the cache.
+ *   - Cache hit   -> read the array, run JWK::parseKeySet() to materialise
+ *                    fresh `Key` objects in memory. Parsing is microseconds;
+ *                    network is milliseconds. Net win is enormous.
  *
  * Failure modes that bubble up:
- *
  *   - `auth_not_configured` if no JWKS URI is set in config (we deliberately
  *     hard-fail rather than silently allow unsigned tokens through).
  *   - Any HTTP / parsing error becomes a generic `signature_invalid` to the
@@ -51,8 +59,8 @@ final class JwksClient implements JwksProvider
 
         $cacheKey = self::cacheKey($uri);
 
-        /** @var array<string, Key> $keys */
-        $keys = $this->cache->remember(
+        /** @var array<string, mixed> $jwks */
+        $jwks = $this->cache->remember(
             $cacheKey,
             $this->config['cache_ttl'],
             function () use ($uri): array {
@@ -66,15 +74,16 @@ final class JwksClient implements JwksProvider
                     throw InvalidJwtException::badSignature($e);
                 }
 
-                /** @var array<string, mixed> $jwks */
-                $jwks = $response->json();
+                /** @var array<string, mixed> $body */
+                $body = $response->json();
 
-                // JWK::parseKeySet returns a map keyed by `kid` => Key.
-                return JWK::parseKeySet($jwks, $this->config['algorithms'][0]);
+                return $body;
             },
         );
 
-        return $keys;
+        // Parse on every call — cheap, and decoupling from the cache layer
+        // keeps the cache contents serialisable across redis / file / db.
+        return JWK::parseKeySet($jwks, $this->config['algorithms'][0]);
     }
 
     public function flush(): void

@@ -219,3 +219,43 @@ it('falls back to preferred_username when email is missing', function (): void {
 
     expect($authClaims->email)->toBe('fallback@example.com');
 });
+
+it('falls back to unique_name (Entra v1.0) when email and preferred_username are missing', function (): void {
+    $jwt = new JwtTestHelper;
+    $claims = JwtTestHelper::defaultClaims();
+    unset($claims['email']);
+    $claims['unique_name'] = 'v1user@example.com';
+    $token = $jwt->sign($claims);
+
+    $authClaims = makeVerifier($jwt)->verify($token);
+
+    expect($authClaims->email)->toBe('v1user@example.com');
+});
+
+it('prefers unique_name over upn for the email fallback', function (): void {
+    // Real-world Entra v1.0: `upn` is often `<oid>@<tenant>.onmicrosoft.com`,
+    // while `unique_name` carries the actual sign-in address. The DTO must
+    // pick the more useful one.
+    $jwt = new JwtTestHelper;
+    $claims = JwtTestHelper::defaultClaims();
+    unset($claims['email']);
+    $claims['upn'] = 'opaque-oid@tenant.onmicrosoft.com';
+    $claims['unique_name'] = 'real.user@example.com';
+    $token = $jwt->sign($claims);
+
+    $authClaims = makeVerifier($jwt)->verify($token);
+
+    expect($authClaims->email)->toBe('real.user@example.com');
+});
+
+it('falls back to upn when neither email, preferred_username, nor unique_name are present', function (): void {
+    $jwt = new JwtTestHelper;
+    $claims = JwtTestHelper::defaultClaims();
+    unset($claims['email']);
+    $claims['upn'] = 'last.resort@example.com';
+    $token = $jwt->sign($claims);
+
+    $authClaims = makeVerifier($jwt)->verify($token);
+
+    expect($authClaims->email)->toBe('last.resort@example.com');
+});
