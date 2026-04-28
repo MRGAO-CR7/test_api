@@ -90,4 +90,24 @@ final class ApiErrorEnvelope
     {
         return self::make(Response::HTTP_INTERNAL_SERVER_ERROR, $code, $message);
     }
+
+    public static function methodNotAllowed(string $message = 'HTTP method not allowed for this resource.'): JsonResponse
+    {
+        return self::make(Response::HTTP_METHOD_NOT_ALLOWED, 'method_not_allowed', $message);
+    }
+
+    public static function tooManyRequests(string $message = 'Too many requests, slow down.', ?int $retryAfter = null): JsonResponse
+    {
+        $response = self::make(Response::HTTP_TOO_MANY_REQUESTS, 'too_many_requests', $message);
+        if ($retryAfter !== null) {
+            $response->headers->set('Retry-After', (string) $retryAfter);
+        }
+
+        return $response;
+    }
+
+    public static function serviceUnavailable(string $code = 'service_unavailable', string $message = 'The service is temporarily unavailable.'): JsonResponse
+    {
+        return self::make(Response::HTTP_SERVICE_UNAVAILABLE, $code, $message);
+    }
 }

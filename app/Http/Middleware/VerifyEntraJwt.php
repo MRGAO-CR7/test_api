@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Support\Audit\AuditLog;
 use App\Support\Http\ApiErrorEnvelope;
 use App\Support\Jwt\EntraJwtVerifier;
 use App\Support\Jwt\Exceptions\InvalidJwtException;
@@ -38,12 +39,16 @@ final class VerifyEntraJwt
     {
         $token = self::extractBearer($request);
         if ($token === null) {
+            AuditLog::authFailed('missing_bearer');
+
             return ApiErrorEnvelope::unauthorized('missing_bearer', 'Missing Authorization: Bearer header.');
         }
 
         try {
             $claims = $this->verifier->verify($token);
         } catch (InvalidJwtException $e) {
+            AuditLog::authFailed($e->errorCode);
+
             // `auth_not_configured` is an operator problem, not a client one
             // — surface it as 503 so the BFF can distinguish it from a real
             // auth failure and avoid a logout loop.

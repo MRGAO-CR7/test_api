@@ -31,7 +31,7 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 - [x] **Phase 3 — Docker compose + nginx, joined to `bbm`** (`test_api_webserver:8000` ↔ host `:8009`, php-fpm 8.4 alpine, MySQL via bbm DNS `docker-mysql-1`, healthcheck green)
 - [x] **Phase 4 — JWT verification middleware** (Entra JWKS, JwksProvider interface + cache + rotation retry, AuthClaims DTO with claim mapping, `auth.jwt` middleware alias, temp `/api/v1/_debug/whoami` for verification)
 - [x] **Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/me`** (UserRepository contract + Eloquent impl, UserProvisioner with race-safe upsert, `auth.user` middleware aliasing `ResolveCurrentUser`, MeController + UpdateMeRequest, `_debug/whoami` removed, 43 tests / 133 assertions green)
-- [ ] Phase 6 — Hardening (error mapping, request id, CORS, throttle, ready probe)
+- [x] **Phase 6 — Hardening** (global exception → envelope mapping; `X-Request-Id` round-trip; `SecurityHeaders` middleware; tight CORS; per-uuid + per-IP rate limits with priority pinning; `/api/v1/ready` DB+JWKS probe; structured `audit` log channel; `.env.production.example`; 59 tests / 197 assertions green)
 
 ## Layout (target — built up across phases)
 
@@ -47,18 +47,27 @@ app/
 ├─ Http/
 │  ├─ Controllers/Api/V1/HealthController.php             # P1
 │  ├─ Controllers/Api/V1/MeController.php                 # P5
+│  ├─ Controllers/Api/V1/ReadinessController.php          # P6
 │  ├─ Middleware/ForceJsonResponse.php                    # P1
 │  ├─ Middleware/VerifyEntraJwt.php                       # P4 -> auth.jwt
 │  ├─ Middleware/ResolveCurrentUser.php                   # P5 -> auth.user
 │  ├─ Middleware/AssignRequestId.php                      # P6
+│  ├─ Middleware/SecurityHeaders.php                      # P6
 │  ├─ Requests/Api/V1/UpdateMeRequest.php                 # P5
 │  └─ Resources/UserResource.php                          # P2
 ├─ Support/
+│  ├─ Audit/AuditLog.php                                  # P6
 │  ├─ Http/ApiErrorEnvelope.php                           # P1
+│  ├─ Http/ExceptionRenderer.php                          # P6
 │  └─ Jwt/{JwksClient,EntraJwtVerifier}.php               # P4
 └─ Providers/
    ├─ JwtServiceProvider.php                              # P4
+   ├─ RateLimitServiceProvider.php                        # P6
    └─ UserServiceProvider.php                             # P5
+config/
+├─ auth_jwt.php                                           # P4
+├─ cors.php                                               # P6
+└─ rate_limit.php                                         # P6
 routes/
 ├─ api.php          # /api/v1/*
 └─ web.php          # intentionally empty (no HTML)
@@ -234,3 +243,79 @@ Until those three are filled in, every protected route 503s — by design.
    `test_frontend/src/app/api/test/[...slug]/route.ts` already strips/forwards
    only `Authorization`, `Content-Type`, `Accept`, `Accept-Language`. Don't
    rely on any other inbound header.
+
+## Operations contract (Phase 6)
+
+### Probes
+
+| Method | Path | Purpose | Auth | Behaviour |
+| ------ | ---- | ------- | ---- | --------- |
+| GET | `/api/v1/health` | Liveness — process is up | none | Always 200 if PHP can answer. Cheap. |
+| GET | `/api/v1/ready` | Readiness — dependencies are usable | none | 200 if `SELECT 1` AND JWKS reachable. **503 not_ready** otherwise. Use this for k8s `readinessProbe`. |
+
+### Headers (every response)
+
+| Header | Source | Notes |
+| ------ | ------ | ----- |
+| `X-Request-Id` | `AssignRequestId` middleware | Reuses inbound if it matches `[A-Za-z0-9_-]{8,128}`, otherwise mints a UUIDv4. Echoed even on 4xx/5xx so the BFF can correlate. |
+| `X-Content-Type-Options: nosniff` | `SecurityHeaders` | |
+| `X-Frame-Options: DENY` | `SecurityHeaders` | Strictest setting; this is a JSON API. |
+| `Referrer-Policy: no-referrer` | `SecurityHeaders` | |
+| `X-Permitted-Cross-Domain-Policies: none` | `SecurityHeaders` | |
+
+`Strict-Transport-Security` is intentionally NOT set here — that belongs at the TLS-terminating proxy in front of the container, which has the right view of HTTP vs HTTPS.
+
+### CORS
+
+Disabled by default. Populate `CORS_ALLOWED_ORIGINS` (comma-separated) only for environments where a browser will hit `/api/*` directly. In normal BFF-fronted operation the allow-list is empty and browser cross-origin requests are rejected.
+
+### Rate limits
+
+| Limiter | Key | Default | Override |
+| ------- | --- | ------- | -------- |
+| `throttle:api_user` | per `users.uuid` (NOT per IP — every BFF request comes from one IP) | 60 / minute | `RATE_LIMIT_API_USER_PER_MINUTE` |
+| `throttle:public` | per IP | 120 / minute | `RATE_LIMIT_PUBLIC_PER_MINUTE` |
+
+When tripped: HTTP 429 in the standard envelope with a `Retry-After` header. The middleware priority is pinned so `auth.user` resolves first; otherwise the limiter would fall back to per-IP and lump every user behind the BFF into one bucket.
+
+### Errors
+
+Every uncaught exception flows through `App\Support\Http\ExceptionRenderer` and emerges as the standard envelope:
+
+```json
+{ "ok": false, "code": "snake_case", "message": "human", "status": 4xx, "details": null }
+```
+
+| HTTP | `code` | When |
+| ---- | ------ | ---- |
+| 401 | `missing_bearer`, `token_expired`, `iss_mismatch`, ... | see Phase 4 table |
+| 403 | `forbidden` | future authorization checks |
+| 404 | `route_not_found` | unknown URL |
+| 404 | `resource_not_found` | implicit `ModelNotFoundException` |
+| 405 | `method_not_allowed` | wrong verb on existing route |
+| 422 | `validation_failed` | FormRequest / ValidationException |
+| 429 | `too_many_requests` | rate limit exhausted |
+| 500 | `server_error` | catch-all (no stack trace ever) |
+| 503 | `auth_not_configured` | operator forgot `JWT_*` |
+| 503 | `not_ready` | `/api/v1/ready` probe failed |
+
+`APP_DEBUG=true` adds the exception class + message to `message`. `APP_DEBUG=false` (production) keeps `Something went wrong.` Stack traces never appear in the response body in any mode.
+
+### Logging
+
+| Channel | File | Carries |
+| ------- | ---- | ------- |
+| `single` (default app) | `storage/logs/laravel.log` | Application logs. Every line carries `request_id` from `Log::withContext`. |
+| `audit` (separate) | `storage/logs/audit.log` | Structured one-line JSON per security event. Use a different retention / shipper policy from app logs. |
+
+Audit events emitted by `App\Support\Audit\AuditLog`:
+
+| `event` | Trigger | Key fields |
+| ------- | ------- | ---------- |
+| `auth.failed` | `auth.jwt` rejected the request | `code`, `request_id`, `ip`, `ua` |
+| `me.updated` | PATCH /me changed at least one field | `uuid`, `changes: {field: {from, to}}` |
+| `server.error` | reserved for catch-all 500 (wire it from `ExceptionRenderer` if needed) | `exception`, `message`, ... |
+
+### Production env
+
+`.env.production.example` carries the **Route A** values (token aimed at the SPA's own client ID, not Microsoft Graph) plus `CORS_ALLOWED_ORIGINS` / `RATE_LIMIT_*`. Copy it into a real `.env` once the front-end stops requesting Graph scopes; the local `.env` may keep its current "Graph token for testing" values until then.

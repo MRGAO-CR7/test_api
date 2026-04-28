@@ -8,6 +8,7 @@ use App\Domain\User\Models\User;
 use App\Domain\User\Repositories\UserRepository;
 use App\Http\Requests\Api\V1\UpdateMeRequest;
 use App\Http\Resources\UserResource;
+use App\Support\Audit\AuditLog;
 use Illuminate\Http\Request;
 use LogicException;
 
@@ -41,9 +42,20 @@ final class MeController
     {
         $user = $this->currentUser($request);
 
+        // Snapshot only the columns we are allowed to mutate; that's also
+        // exactly the set the audit log cares about. Doing this BEFORE
+        // updateProfile keeps the diff calculation honest.
+        $before = $user->only(['first_name', 'last_name', 'email']);
+
         $updated = $this->users->updateProfile(
             $user,
             $request->validated(),
+        );
+
+        AuditLog::profileUpdated(
+            uuid: $updated->uuid,
+            before: $before,
+            after: $updated->only(['first_name', 'last_name', 'email']),
         );
 
         return new UserResource($updated);

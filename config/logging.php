@@ -67,6 +67,19 @@ return [
             'replace_placeholders' => true,
         ],
 
+        /*
+        | Append-only audit log used by App\Support\Audit. Carries one
+        | structured JSON entry per security-relevant event (auth failure,
+        | profile mutation, 5xx). Independent file so log retention /
+        | shipping policies can treat it differently from app logs.
+        */
+        'audit' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/audit.log'),
+            'level' => 'info',
+            'replace_placeholders' => false,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
