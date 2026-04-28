@@ -8,26 +8,29 @@ use Tests\Support\Jwt\JwtTestHelper;
 
 /*
 |--------------------------------------------------------------------------
-| Feature tests for the auth pipeline (middleware + route)
+| Feature tests for the auth pipeline (rejection paths only)
 |--------------------------------------------------------------------------
 |
-| Drives the framework all the way to the temporary /api/v1/_debug/whoami
-| endpoint and asserts the wire shape — both for the success path and for
-| every documented rejection reason.
+| All rejection branches short-circuit inside `auth.jwt` BEFORE `auth.user`
+| ever runs, so we deliberately route through GET /api/v1/me here without
+| needing a database refresh: the request never reaches the controller.
+|
+| The success path (200 + UserResource shape, JIT row creation, etc.) lives
+| in MeEndpointTest -- this file is the auth-only contract.
 |
 */
 
 beforeEach(function (): void {
     $this->jwt = new JwtTestHelper;
 
-    // Replace the singleton-bound JwksProvider with a stub that returns our
-    // local public key. Because the provider is bound (not singleton) any
-    // verifier instance built downstream will see this stub.
+    // Replace the bound JwksProvider with a stub that returns our local
+    // public key. Because the provider is bound (not singleton) any verifier
+    // instance built downstream will see this stub.
     $this->app->instance(JwksProvider::class, new ArrayJwksProvider($this->jwt->asKeySet()));
 });
 
 it('returns 401 missing_bearer when there is no Authorization header', function (): void {
-    $this->getJson('/api/v1/_debug/whoami')
+    $this->getJson('/api/v1/me')
         ->assertStatus(401)
         ->assertJsonPath('ok', false)
         ->assertJsonPath('code', 'missing_bearer');
@@ -35,7 +38,7 @@ it('returns 401 missing_bearer when there is no Authorization header', function 
 
 it('returns 401 missing_bearer when the header has the wrong scheme', function (): void {
     $this->withHeader('Authorization', 'Basic Zm9vOmJhcg==')
-        ->getJson('/api/v1/_debug/whoami')
+        ->getJson('/api/v1/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'missing_bearer');
 });
@@ -48,7 +51,7 @@ it('returns 401 token_expired for an expired JWT', function (): void {
     ]));
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/_debug/whoami')
+        ->getJson('/api/v1/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'token_expired');
 });
@@ -59,7 +62,7 @@ it('returns 401 iss_mismatch for a token from the wrong issuer', function (): vo
     ]));
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/_debug/whoami')
+        ->getJson('/api/v1/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'iss_mismatch');
 });
@@ -70,7 +73,7 @@ it('returns 401 aud_mismatch for a token aimed at another service', function ():
     ]));
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/_debug/whoami')
+        ->getJson('/api/v1/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'aud_mismatch');
 });
@@ -80,24 +83,7 @@ it('returns 401 signature_invalid for a token signed with a foreign key', functi
     $token = $attacker->sign(JwtTestHelper::defaultClaims());
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/_debug/whoami')
+        ->getJson('/api/v1/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'signature_invalid');
-});
-
-it('returns 200 with the verified claims for a valid token', function (): void {
-    $token = $this->jwt->sign(JwtTestHelper::defaultClaims([
-        'sub' => '11111111-2222-3333-4444-555555555555',
-        'email' => 'alice@example.com',
-        'given_name' => 'Alice',
-        'family_name' => 'Example',
-    ]));
-
-    $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/_debug/whoami')
-        ->assertOk()
-        ->assertJsonPath('data.uuid', '11111111-2222-3333-4444-555555555555')
-        ->assertJsonPath('data.email', 'alice@example.com')
-        ->assertJsonPath('data.first_name', 'Alice')
-        ->assertJsonPath('data.last_name', 'Example');
 });

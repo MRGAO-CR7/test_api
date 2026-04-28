@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\ResolveCurrentUser;
 use App\Http\Middleware\VerifyEntraJwt;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // are the names route definitions will refer to.
         $middleware->alias([
             'auth.jwt' => VerifyEntraJwt::class,
+            'auth.user' => ResolveCurrentUser::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

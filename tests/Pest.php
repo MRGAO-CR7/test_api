@@ -15,3 +15,8 @@ declare(strict_types=1);
 
 pest()->extend(Tests\TestCase::class)->in('Feature');
 pest()->extend(Tests\TestCase::class)->in('Unit/Jwt');
+
+// User tests touch Eloquent (forceFill against a model with datetime/array
+// casts) which calls into the Laravel container for cast resolution, so we
+// need a booted application even though no migrations / DB calls happen.
+pest()->extend(Tests\TestCase::class)->in('Unit/User');

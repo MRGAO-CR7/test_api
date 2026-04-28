@@ -30,7 +30,7 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 - [x] **Phase 2 — DB connection + `users` migration + Eloquent model** (MySQL `test`, `App\Domain\User\Models\User`, `UserResource`, factory, soft-delete + uuid/email unique)
 - [x] **Phase 3 — Docker compose + nginx, joined to `bbm`** (`test_api_webserver:8000` ↔ host `:8009`, php-fpm 8.4 alpine, MySQL via bbm DNS `docker-mysql-1`, healthcheck green)
 - [x] **Phase 4 — JWT verification middleware** (Entra JWKS, JwksProvider interface + cache + rotation retry, AuthClaims DTO with claim mapping, `auth.jwt` middleware alias, temp `/api/v1/_debug/whoami` for verification)
-- [ ] Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/me`
+- [x] **Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/me`** (UserRepository contract + Eloquent impl, UserProvisioner with race-safe upsert, `auth.user` middleware aliasing `ResolveCurrentUser`, MeController + UpdateMeRequest, `_debug/whoami` removed, 43 tests / 133 assertions green)
 - [ ] Phase 6 — Hardening (error mapping, request id, CORS, throttle, ready probe)
 
 ## Layout (target — built up across phases)
@@ -39,25 +39,26 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 app/
 ├─ Domain/
 │  └─ User/
-│     ├─ Models/User.php                    # P2
-│     ├─ Repositories/UserRepository.php    # P5
-│     ├─ Services/UserProvisioningService.php  # P5
-│     └─ DTOs/AuthClaims.php                # P4
+│     ├─ Models/User.php                                  # P2
+│     ├─ Repositories/UserRepository.php                  # P5 (interface)
+│     ├─ Repositories/EloquentUserRepository.php          # P5 (default impl)
+│     ├─ Services/UserProvisioner.php                     # P5 (JIT)
+│     └─ DTOs/AuthClaims.php                              # P4
 ├─ Http/
-│  ├─ Controllers/Api/V1/HealthController.php  # P1
-│  ├─ Controllers/Api/V1/MeController.php      # P5
-│  ├─ Middleware/ForceJsonResponse.php         # P1
-│  ├─ Middleware/VerifyEntraJwt.php            # P4
-│  ├─ Middleware/ResolveCurrentUser.php        # P5
-│  ├─ Middleware/AssignRequestId.php           # P6
-│  ├─ Requests/Api/V1/UpdateMeRequest.php      # P5
-│  └─ Resources/UserResource.php               # P2
+│  ├─ Controllers/Api/V1/HealthController.php             # P1
+│  ├─ Controllers/Api/V1/MeController.php                 # P5
+│  ├─ Middleware/ForceJsonResponse.php                    # P1
+│  ├─ Middleware/VerifyEntraJwt.php                       # P4 -> auth.jwt
+│  ├─ Middleware/ResolveCurrentUser.php                   # P5 -> auth.user
+│  ├─ Middleware/AssignRequestId.php                      # P6
+│  ├─ Requests/Api/V1/UpdateMeRequest.php                 # P5
+│  └─ Resources/UserResource.php                          # P2
 ├─ Support/
-│  ├─ Http/ApiErrorEnvelope.php             # P1
-│  └─ Jwt/{JwksClient,EntraJwtVerifier}.php # P4
+│  ├─ Http/ApiErrorEnvelope.php                           # P1
+│  └─ Jwt/{JwksClient,EntraJwtVerifier}.php               # P4
 └─ Providers/
-   ├─ DomainServiceProvider.php             # P5
-   └─ JwtServiceProvider.php                # P4
+   ├─ JwtServiceProvider.php                              # P4
+   └─ UserServiceProvider.php                             # P5
 routes/
 ├─ api.php          # /api/v1/*
 └─ web.php          # intentionally empty (no HTML)
@@ -152,6 +153,58 @@ Stable error codes (returned in `BffErrorBody.code`) — keep stable for the SPA
 > The 503 split is deliberate: the BFF must not log a user out on
 > `auth_not_configured`. `401` means the user's session is bad; `503` means
 > the API is broken.
+
+## Endpoints (Phase 5)
+
+The middleware stack `auth.jwt` -> `auth.user` runs on every protected
+route. `auth.jwt` verifies the token and produces an `AuthClaims` DTO;
+`auth.user` JIT-creates / touches the matching `users` row and attaches the
+Eloquent `User` to the request.
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/api/v1/health` | Liveness, no auth |
+| GET | `/api/v1/me` | Current user. JIT-creates the row on first call. Idempotent (always 200). |
+| PATCH | `/api/v1/me` | Partial update of `first_name`, `last_name`, `email`. Empty body = 200 no-op. |
+
+Sample success body (both GET and PATCH):
+
+```json
+{
+  "data": {
+    "uuid": "11111111-2222-3333-4444-555555555555",
+    "email": "alice@example.com",
+    "first_name": "Alice",
+    "last_name": "Example",
+    "last_seen_at": "2026-04-28T22:30:00+00:00"
+  }
+}
+```
+
+Sample 422 (validation failure on PATCH):
+
+```json
+{
+  "ok": false,
+  "code": "validation_failed",
+  "message": "The given data was invalid.",
+  "status": 422,
+  "details": {
+    "errors": {
+      "email": ["The email field must be a valid email address."]
+    }
+  }
+}
+```
+
+What is intentionally NOT in `UserResource`:
+- `id` (DB-internal bigint; clients reason about users via `uuid` only)
+- `last_token_jti` (server-side audit only)
+- `claims_snapshot` (full token payload kept for audit / debugging)
+
+PATCH ignores any field not on the allow list (`first_name`, `last_name`,
+`email`). Sending `uuid`, `last_token_jti`, `claims_snapshot`, or `id` is a
+silent no-op for those columns -- they are never client-mutable.
 
 Required env (see `.env.example`):
 
