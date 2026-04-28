@@ -15,7 +15,10 @@ declare(strict_types=1);
 |
 |   JWT_JWKS_URI       — full URL to the JWKS endpoint
 |   JWT_ISSUER         — exact `iss` value the tokens carry
-|   JWT_AUDIENCE       — your API's app id / app id URI in Entra
+|   JWT_AUDIENCE       — your API's app id URI in Entra (e.g. api://<guid>).
+|                        Accepts a comma-separated list to allow multiple
+|                        formats during a rollout, e.g.
+|                        "api://<guid>,<guid>".
 |
 | Optional knobs are documented inline below.
 |
@@ -43,7 +46,17 @@ return [
     */
 
     'issuer' => env('JWT_ISSUER'),
-    'audience' => env('JWT_AUDIENCE'),
+
+    // JWT_AUDIENCE accepts a comma-separated list. The verifier requires *any*
+    // of these to appear in the token's `aud` claim. Useful while rolling
+    // between v1/v2 token formats or app-id-uri vs bare-guid styles.
+    'audience' => array_values(array_filter(
+        array_map(
+            'trim',
+            explode(',', (string) env('JWT_AUDIENCE', ''))
+        ),
+        static fn (string $value): bool => $value !== '',
+    )),
 
     /*
     |--------------------------------------------------------------------------
@@ -92,13 +105,20 @@ return [
     | Claim name mapping
     |--------------------------------------------------------------------------
     | Different IdPs put the user's stable identity in different claims.
-    | Microsoft Entra typically uses `sub` for app-scoped GUIDs and `oid`
-    | for tenant-scoped GUIDs. Default to `sub` here; override per env
-    | when you've confirmed which one auth_service actually emits.
+    |
+    | For Microsoft Entra (External ID / CIAM) we default to `oid`:
+    |   - `oid` is a tenant-scoped GUID (CHAR(36)), stable across apps in
+    |     the tenant, recommended by Microsoft as the user identifier.
+    |   - `sub` is a per-app pairwise pseudonymous identifier (PPID): an
+    |     opaque ~43-character base64url string. It is stable, but its
+    |     length will overflow our `users.uuid` CHAR(36) column.
+    |
+    | Override per env when running against a non-Entra IdP that prefers
+    | the OIDC standard `sub`.
     */
 
     'claims' => [
-        'uuid' => env('JWT_UUID_CLAIM', 'sub'),
+        'uuid' => env('JWT_UUID_CLAIM', 'oid'),
         'email' => env('JWT_EMAIL_CLAIM', 'email'),
         'first_name' => env('JWT_FIRST_NAME_CLAIM', 'given_name'),
         'last_name' => env('JWT_LAST_NAME_CLAIM', 'family_name'),

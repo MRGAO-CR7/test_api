@@ -45,7 +45,7 @@ final class JwtServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(EntraJwtVerifier::class, function ($app): EntraJwtVerifier {
-            /** @var array{issuer: ?string, audience: ?string, algorithms: list<string>, leeway: int, claims: array{uuid: string, email: string, first_name: string, last_name: string}} $cfg */
+            /** @var array{issuer: ?string, audience: string|list<string>|null, algorithms: list<string>, leeway: int, claims: array{uuid: string, email: string, first_name: string, last_name: string}} $cfg */
             $cfg = [
                 'issuer' => config('auth_jwt.issuer'),
                 'audience' => config('auth_jwt.audience'),

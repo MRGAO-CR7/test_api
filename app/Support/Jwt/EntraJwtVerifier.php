@@ -27,15 +27,19 @@ use UnexpectedValueException;
  *      to absorb a key rotation.
  *   2. We assert `iss` exactly matches the configured issuer. (firebase/php-jwt
  *      does not validate `iss` for us.)
- *   3. We assert the configured audience appears in the token's `aud`
- *      (string or array).
+ *   3. We assert that *any* of the configured audiences appears in the
+ *      token's `aud` (string or array). The config accepts a single string
+ *      or a list — Entra may issue tokens with `aud` as either the App ID
+ *      URI (`api://<guid>`) or the bare client GUID depending on token
+ *      version, and operators sometimes need to accept both during a
+ *      rollout.
  *   4. We project the payload into `AuthClaims` via the configured
  *      claim-name mapping.
  */
 final class EntraJwtVerifier
 {
     /**
-     * @param  array{issuer: ?string, audience: ?string, algorithms: list<string>, leeway: int, claims: array{uuid: string, email: string, first_name: string, last_name: string}}  $config
+     * @param  array{issuer: ?string, audience: string|list<string>|null, algorithms: list<string>, leeway: int, claims: array{uuid: string, email: string, first_name: string, last_name: string}}  $config
      */
     public function __construct(
         private readonly JwksProvider $jwks,
@@ -61,12 +65,19 @@ final class EntraJwtVerifier
             throw InvalidJwtException::issuerMismatch();
         }
 
-        // (3) Audience
-        $expectedAud = $this->config['audience'];
-        if ($expectedAud !== null && $expectedAud !== '') {
+        // (3) Audience — accept any of the configured values
+        $expectedAuds = self::normaliseExpectedAudiences($this->config['audience']);
+        if ($expectedAuds !== []) {
             $aud = $payload->aud ?? null;
             $audValues = is_array($aud) ? $aud : (is_string($aud) ? [$aud] : []);
-            if (! in_array($expectedAud, $audValues, true)) {
+            $matched = false;
+            foreach ($expectedAuds as $expected) {
+                if (in_array($expected, $audValues, true)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (! $matched) {
                 throw InvalidJwtException::audienceMismatch();
             }
         }
@@ -142,5 +153,28 @@ final class EntraJwtVerifier
     private static function isAlgorithmRejection(UnexpectedValueException $e): bool
     {
         return stripos($e->getMessage(), 'algorithm') !== false;
+    }
+
+    /**
+     * Normalise the configured `audience` (string | list<string> | null) into
+     * a clean list, dropping nulls and empty strings.
+     *
+     * @param  string|list<string>|null  $raw
+     * @return list<string>
+     */
+    private static function normaliseExpectedAudiences(string|array|null $raw): array
+    {
+        if ($raw === null) {
+            return [];
+        }
+        $values = is_array($raw) ? $raw : [$raw];
+        $clean = [];
+        foreach ($values as $value) {
+            if (is_string($value) && $value !== '') {
+                $clean[] = $value;
+            }
+        }
+
+        return $clean;
     }
 }

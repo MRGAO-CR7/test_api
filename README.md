@@ -220,10 +220,14 @@ Required env (see `.env.example`):
 ```dotenv
 JWT_JWKS_URI=https://<tenant>.ciamlogin.com/<tenant-id>/discovery/v2.0/keys
 JWT_ISSUER=https://<tenant>.ciamlogin.com/<tenant-id>/v2.0
-JWT_AUDIENCE=api://test_api
+# Comma-separated list — Entra's `aud` may be `api://<guid>` or bare `<guid>`
+# depending on token version, so we accept both.
+JWT_AUDIENCE=api://<client-id>,<client-id>
 
-# Override per env if your IdP uses different claim names.
-JWT_UUID_CLAIM=sub
+# Override per env if your IdP uses different claim names. For Entra we
+# prefer `oid` (tenant GUID, fits CHAR(36)) over `sub` (per-app PPID, ~43
+# chars, would overflow the schema).
+JWT_UUID_CLAIM=oid
 JWT_EMAIL_CLAIM=email
 ```
 
