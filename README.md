@@ -26,12 +26,12 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 
 ## Phase status
 
-- [x] **Phase 1 — Scaffold + tooling skeleton** (`/api/v1/health`, force-JSON, error envelope, pint/phpstan/pest)
+- [x] **Phase 1 — Scaffold + tooling skeleton** (`/api/v1/test/health`, force-JSON, error envelope, pint/phpstan/pest)
 - [x] **Phase 2 — DB connection + `users` migration + Eloquent model** (MySQL `test`, `App\Domain\User\Models\User`, `UserResource`, factory, soft-delete + uuid/email unique)
 - [x] **Phase 3 — Docker compose + nginx, joined to `bbm`** (`test_api_webserver:8000` ↔ host `:8009`, php-fpm 8.4 alpine, MySQL via bbm DNS `docker-mysql-1`, healthcheck green)
 - [x] **Phase 4 — JWT verification middleware** (Entra JWKS, JwksProvider interface + cache + rotation retry, AuthClaims DTO with claim mapping, `auth.jwt` middleware alias, temp `/api/v1/_debug/whoami` for verification)
-- [x] **Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/me`** (UserRepository contract + Eloquent impl, UserProvisioner with race-safe upsert, `auth.user` middleware aliasing `ResolveCurrentUser`, MeController + UpdateMeRequest, `_debug/whoami` removed, 43 tests / 133 assertions green)
-- [x] **Phase 6 — Hardening** (global exception → envelope mapping; `X-Request-Id` round-trip; `SecurityHeaders` middleware; tight CORS; per-uuid + per-IP rate limits with priority pinning; `/api/v1/ready` DB+JWKS probe; structured `audit` log channel; `.env.production.example`; 59 tests / 197 assertions green)
+- [x] **Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/test/me`** (UserRepository contract + Eloquent impl, UserProvisioner with race-safe upsert, `auth.user` middleware aliasing `ResolveCurrentUser`, MeController + UpdateMeRequest, `_debug/whoami` removed, 43 tests / 133 assertions green)
+- [x] **Phase 6 — Hardening** (global exception → envelope mapping; `X-Request-Id` round-trip; `SecurityHeaders` middleware; tight CORS; per-uuid + per-IP rate limits with priority pinning; `/api/v1/test/ready` DB+JWKS probe; structured `audit` log channel; `.env.production.example`; 59 tests / 197 assertions green)
 
 ## Layout (target — built up across phases)
 
@@ -90,7 +90,7 @@ php artisan migrate
 
 php artisan serve --port=8009
 # other terminal:
-curl -s http://localhost:8009/api/v1/health | jq
+curl -s http://localhost:8009/api/v1/test/health | jq
 ```
 
 ### Option B — `docker compose` (joins the shared `bbm` network)
@@ -104,9 +104,9 @@ docker compose up --build -d
 docker compose logs -f test_api_php
 
 # 2) verify all three reach paths
-curl -s http://localhost:8009/api/v1/health                         # host
+curl -s http://localhost:8009/api/v1/test/health                         # host
 docker run --rm --network bbm curlimages/curl \
-    -s http://test_api_webserver:8000/api/v1/health                 # bbm peer
+    -s http://test_api_webserver:8000/api/v1/test/health                 # bbm peer
 docker compose exec test_api_php php artisan migrate:status         # MySQL via bbm DNS
 
 # stop without losing the vendor/ named volume:
@@ -172,9 +172,9 @@ Eloquent `User` to the request.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| GET | `/api/v1/health` | Liveness, no auth |
-| GET | `/api/v1/me` | Current user. JIT-creates the row on first call. Idempotent (always 200). |
-| PATCH | `/api/v1/me` | Partial update of `first_name`, `last_name`, `email`. Empty body = 200 no-op. |
+| GET | `/api/v1/test/health` | Liveness, no auth |
+| GET | `/api/v1/test/me` | Current user. JIT-creates the row on first call. Idempotent (always 200). |
+| PATCH | `/api/v1/test/me` | Partial update of `first_name`, `last_name`, `email`. Empty body = 200 no-op. |
 
 Sample success body (both GET and PATCH):
 
@@ -250,8 +250,8 @@ Until those three are filled in, every protected route 503s — by design.
 
 | Method | Path | Purpose | Auth | Behaviour |
 | ------ | ---- | ------- | ---- | --------- |
-| GET | `/api/v1/health` | Liveness — process is up | none | Always 200 if PHP can answer. Cheap. |
-| GET | `/api/v1/ready` | Readiness — dependencies are usable | none | 200 if `SELECT 1` AND JWKS reachable. **503 not_ready** otherwise. Use this for k8s `readinessProbe`. |
+| GET | `/api/v1/test/health` | Liveness — process is up | none | Always 200 if PHP can answer. Cheap. |
+| GET | `/api/v1/test/ready` | Readiness — dependencies are usable | none | 200 if `SELECT 1` AND JWKS reachable. **503 not_ready** otherwise. Use this for k8s `readinessProbe`. |
 
 ### Headers (every response)
 
@@ -297,7 +297,7 @@ Every uncaught exception flows through `App\Support\Http\ExceptionRenderer` and 
 | 429 | `too_many_requests` | rate limit exhausted |
 | 500 | `server_error` | catch-all (no stack trace ever) |
 | 503 | `auth_not_configured` | operator forgot `JWT_*` |
-| 503 | `not_ready` | `/api/v1/ready` probe failed |
+| 503 | `not_ready` | `/api/v1/test/ready` probe failed |
 
 `APP_DEBUG=true` adds the exception class + message to `message`. `APP_DEBUG=false` (production) keeps `Something went wrong.` Stack traces never appear in the response body in any mode.
 

@@ -8,7 +8,7 @@ use Firebase\JWT\Key;
 
 /*
 |--------------------------------------------------------------------------
-| Feature tests for /api/v1/ready
+| Feature tests for /api/v1/test/ready
 |--------------------------------------------------------------------------
 |
 | The readiness probe must reflect actual dependency state. We stub the
@@ -31,7 +31,7 @@ beforeEach(function (): void {
 });
 
 it('returns 200 ready when DB and JWKS are healthy', function (): void {
-    $this->getJson('/api/v1/ready')
+    $this->getJson('/api/v1/test/ready')
         ->assertOk()
         ->assertJsonPath('data.service', 'test_api')
         ->assertJsonPath('data.status', 'ready')
@@ -51,7 +51,7 @@ it('returns 503 not_ready when JWKS is down', function (): void {
         public function flush(): void {}
     });
 
-    $this->getJson('/api/v1/ready')
+    $this->getJson('/api/v1/test/ready')
         ->assertStatus(503)
         ->assertJsonPath('ok', false)
         ->assertJsonPath('code', 'not_ready')
@@ -71,7 +71,7 @@ it('returns 503 not_ready when JWKS yields an empty key set', function (): void 
         public function flush(): void {}
     });
 
-    $this->getJson('/api/v1/ready')
+    $this->getJson('/api/v1/test/ready')
         ->assertStatus(503)
         ->assertJsonPath('details.checks.jwks', 'down');
 });

@@ -12,7 +12,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 /**
- * Validates the body of `PATCH /api/v1/me`.
+ * Validates the body of `PATCH /api/v1/test/me`.
  *
  * Design rules baked into the rule set:
  *

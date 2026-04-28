@@ -38,11 +38,11 @@ it('returns 429 in the envelope shape after the per-user ceiling is exceeded', f
 
     // 3 hits succeed
     foreach (range(1, 3) as $i) {
-        $this->withHeaders($headers)->getJson('/api/v1/me')->assertOk();
+        $this->withHeaders($headers)->getJson('/api/v1/test/me')->assertOk();
     }
 
     // 4th hit must trip the limiter and come back as our envelope
-    $blocked = $this->withHeaders($headers)->getJson('/api/v1/me');
+    $blocked = $this->withHeaders($headers)->getJson('/api/v1/test/me');
 
     $blocked->assertStatus(429)
         ->assertJsonPath('ok', false)
@@ -71,10 +71,10 @@ it('limiter buckets are scoped per-uuid (one user is not throttled by another)',
 
     // Burn user A's quota
     foreach (range(1, 3) as $i) {
-        $this->withHeader('Authorization', "Bearer {$tokenA}")->getJson('/api/v1/me')->assertOk();
+        $this->withHeader('Authorization', "Bearer {$tokenA}")->getJson('/api/v1/test/me')->assertOk();
     }
-    $this->withHeader('Authorization', "Bearer {$tokenA}")->getJson('/api/v1/me')->assertStatus(429);
+    $this->withHeader('Authorization', "Bearer {$tokenA}")->getJson('/api/v1/test/me')->assertStatus(429);
 
     // User B should still be free to proceed
-    $this->withHeader('Authorization', "Bearer {$tokenB}")->getJson('/api/v1/me')->assertOk();
+    $this->withHeader('Authorization', "Bearer {$tokenB}")->getJson('/api/v1/test/me')->assertOk();
 });

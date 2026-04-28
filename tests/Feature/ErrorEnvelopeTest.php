@@ -36,7 +36,7 @@ it('returns the standard envelope for an unknown route (404)', function (): void
 });
 
 it('returns the standard envelope for an unsupported HTTP method (405)', function (): void {
-    $this->postJson('/api/v1/health', [])
+    $this->postJson('/api/v1/test/health', [])
         ->assertStatus(405)
         ->assertJsonPath('ok', false)
         ->assertJsonPath('code', 'method_not_allowed');

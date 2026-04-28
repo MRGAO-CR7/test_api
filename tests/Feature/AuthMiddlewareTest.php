@@ -12,7 +12,7 @@ use Tests\Support\Jwt\JwtTestHelper;
 |--------------------------------------------------------------------------
 |
 | All rejection branches short-circuit inside `auth.jwt` BEFORE `auth.user`
-| ever runs, so we deliberately route through GET /api/v1/me here without
+| ever runs, so we deliberately route through GET /api/v1/test/me here without
 | needing a database refresh: the request never reaches the controller.
 |
 | The success path (200 + UserResource shape, JIT row creation, etc.) lives
@@ -30,7 +30,7 @@ beforeEach(function (): void {
 });
 
 it('returns 401 missing_bearer when there is no Authorization header', function (): void {
-    $this->getJson('/api/v1/me')
+    $this->getJson('/api/v1/test/me')
         ->assertStatus(401)
         ->assertJsonPath('ok', false)
         ->assertJsonPath('code', 'missing_bearer');
@@ -38,7 +38,7 @@ it('returns 401 missing_bearer when there is no Authorization header', function 
 
 it('returns 401 missing_bearer when the header has the wrong scheme', function (): void {
     $this->withHeader('Authorization', 'Basic Zm9vOmJhcg==')
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'missing_bearer');
 });
@@ -51,7 +51,7 @@ it('returns 401 token_expired for an expired JWT', function (): void {
     ]));
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'token_expired');
 });
@@ -62,7 +62,7 @@ it('returns 401 iss_mismatch for a token from the wrong issuer', function (): vo
     ]));
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'iss_mismatch');
 });
@@ -73,7 +73,7 @@ it('returns 401 aud_mismatch for a token aimed at another service', function ():
     ]));
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'aud_mismatch');
 });
@@ -83,7 +83,7 @@ it('returns 401 signature_invalid for a token signed with a foreign key', functi
     $token = $attacker->sign(JwtTestHelper::defaultClaims());
 
     $this->withHeader('Authorization', "Bearer {$token}")
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'signature_invalid');
 });

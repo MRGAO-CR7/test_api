@@ -15,8 +15,8 @@ use LogicException;
 /**
  * The "current user" endpoints.
  *
- *   GET   /api/v1/me   -> the authenticated user's profile
- *   PATCH /api/v1/me   -> partial update of mutable profile fields
+ *   GET   /api/v1/test/me   -> the authenticated user's profile
+ *   PATCH /api/v1/test/me   -> partial update of mutable profile fields
  *
  * What this controller is NOT:
  *

@@ -10,7 +10,7 @@ use Tests\Support\Jwt\JwtTestHelper;
 
 /*
 |--------------------------------------------------------------------------
-| Feature tests for /api/v1/me (Phase 5)
+| Feature tests for /api/v1/test/me (Phase 5)
 |--------------------------------------------------------------------------
 |
 | These exercise the full middleware stack:
@@ -54,7 +54,7 @@ it('JIT-creates a local user on the first authenticated request', function (): v
         'given_name' => 'First',
         'family_name' => 'Login',
     ]))
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertOk()
         ->assertJsonPath('data.uuid', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
         ->assertJsonPath('data.email', 'first@example.com')
@@ -73,7 +73,7 @@ it('JIT-creates a local user on the first authenticated request', function (): v
 it('reuses the same row on the second request and bumps last_seen_at', function (): void {
     $headers = ['Authorization' => bearerHeader($this->jwt)];
 
-    $this->withHeaders($headers)->getJson('/api/v1/me')->assertOk();
+    $this->withHeaders($headers)->getJson('/api/v1/test/me')->assertOk();
 
     /** @var User $afterFirst */
     $afterFirst = User::query()->firstOrFail();
@@ -84,7 +84,7 @@ it('reuses the same row on the second request and bumps last_seen_at', function 
     // Force the clock forward so the second call's `last_seen_at` differs.
     sleep(1);
 
-    $this->withHeaders($headers)->getJson('/api/v1/me')->assertOk();
+    $this->withHeaders($headers)->getJson('/api/v1/test/me')->assertOk();
 
     expect(User::query()->count())->toBe(1);
 
@@ -104,7 +104,7 @@ it('refreshes mutable profile fields from the token on each call', function (): 
         'email' => 'old@example.com',
         'given_name' => 'Old',
         'family_name' => 'Name',
-    ]))->getJson('/api/v1/me')->assertOk();
+    ]))->getJson('/api/v1/test/me')->assertOk();
 
     $this->withHeader('Authorization', bearerHeader($this->jwt, [
         'sub' => $uuid,
@@ -112,14 +112,14 @@ it('refreshes mutable profile fields from the token on each call', function (): 
         'given_name' => 'Updated',
         'family_name' => 'Name',
     ]))
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertOk()
         ->assertJsonPath('data.email', 'updated@example.com')
         ->assertJsonPath('data.first_name', 'Updated');
 });
 
 it('persists the full claims_snapshot for audit purposes (server-side only)', function (): void {
-    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/me')->assertOk();
+    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/test/me')->assertOk();
 
     $row = User::query()->firstOrFail();
 
@@ -131,7 +131,7 @@ it('persists the full claims_snapshot for audit purposes (server-side only)', fu
 
 it('does NOT expose claims_snapshot or last_token_jti in the API response', function (): void {
     $response = $this->withHeader('Authorization', bearerHeader($this->jwt))
-        ->getJson('/api/v1/me')
+        ->getJson('/api/v1/test/me')
         ->assertOk();
 
     $data = $response->json('data');
@@ -142,10 +142,10 @@ it('does NOT expose claims_snapshot or last_token_jti in the API response', func
 });
 
 it('PATCH /me updates allow-listed mutable fields', function (): void {
-    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/me')->assertOk();
+    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/test/me')->assertOk();
 
     $this->withHeader('Authorization', bearerHeader($this->jwt))
-        ->patchJson('/api/v1/me', [
+        ->patchJson('/api/v1/test/me', [
             'first_name' => 'Renamed',
             'last_name' => 'Person',
         ])
@@ -161,10 +161,10 @@ it('PATCH /me updates allow-listed mutable fields', function (): void {
 });
 
 it('PATCH /me ignores attempts to change uuid or other unknown fields', function (): void {
-    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/me')->assertOk();
+    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/test/me')->assertOk();
 
     $this->withHeader('Authorization', bearerHeader($this->jwt))
-        ->patchJson('/api/v1/me', [
+        ->patchJson('/api/v1/test/me', [
             // Stable identity: must never be settable from a request body.
             'uuid' => 'ffffffff-ffff-4fff-8fff-ffffffffffff',
             // Server-side bookkeeping: the auth.user middleware writes this
@@ -189,10 +189,10 @@ it('PATCH /me ignores attempts to change uuid or other unknown fields', function
 });
 
 it('PATCH /me rejects an invalid email with 422 in the standard envelope', function (): void {
-    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/me')->assertOk();
+    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/test/me')->assertOk();
 
     $this->withHeader('Authorization', bearerHeader($this->jwt))
-        ->patchJson('/api/v1/me', [
+        ->patchJson('/api/v1/test/me', [
             'email' => 'not-an-email',
         ])
         ->assertStatus(422)
@@ -208,10 +208,10 @@ it('PATCH /me rejects an email already in use by another user', function (): voi
         'email' => 'taken@example.com',
     ]);
 
-    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/me')->assertOk();
+    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/test/me')->assertOk();
 
     $this->withHeader('Authorization', bearerHeader($this->jwt))
-        ->patchJson('/api/v1/me', [
+        ->patchJson('/api/v1/test/me', [
             'email' => 'taken@example.com',
         ])
         ->assertStatus(422)
@@ -222,12 +222,12 @@ it('PATCH /me rejects an email already in use by another user', function (): voi
 it('PATCH /me lets the user re-PATCH their OWN current email', function (): void {
     $this->withHeader('Authorization', bearerHeader($this->jwt, [
         'email' => 'self@example.com',
-    ]))->getJson('/api/v1/me')->assertOk();
+    ]))->getJson('/api/v1/test/me')->assertOk();
 
     $this->withHeader('Authorization', bearerHeader($this->jwt, [
         'email' => 'self@example.com',
     ]))
-        ->patchJson('/api/v1/me', [
+        ->patchJson('/api/v1/test/me', [
             'email' => 'self@example.com',
         ])
         ->assertOk()
@@ -235,16 +235,16 @@ it('PATCH /me lets the user re-PATCH their OWN current email', function (): void
 });
 
 it('PATCH /me with an empty body is a no-op 200', function (): void {
-    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/me')->assertOk();
+    $this->withHeader('Authorization', bearerHeader($this->jwt))->getJson('/api/v1/test/me')->assertOk();
 
     $this->withHeader('Authorization', bearerHeader($this->jwt))
-        ->patchJson('/api/v1/me', [])
+        ->patchJson('/api/v1/test/me', [])
         ->assertOk()
         ->assertJsonPath('data.uuid', '00000000-0000-4000-8000-000000000001');
 });
 
 it('GET /me without a valid token still returns 401 missing_bearer', function (): void {
-    $this->getJson('/api/v1/me')
+    $this->getJson('/api/v1/test/me')
         ->assertStatus(401)
         ->assertJsonPath('code', 'missing_bearer');
 });

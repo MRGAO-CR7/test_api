@@ -14,7 +14,7 @@ use Throwable;
 /**
  * Readiness probe.
  *
- * Liveness (`/api/v1/health`) answers "is the PHP process up?". Readiness
+ * Liveness (`/api/v1/test/health`) answers "is the PHP process up?". Readiness
  * answers the harder question: "are the dependencies this service needs
  * to *actually serve a request* available right now?".
  *

@@ -15,7 +15,7 @@
 # Quick-start:
 #       docker compose up --build -d
 #       docker compose logs -f test_api_php
-#       curl http://localhost:8009/api/v1/health
+#       curl http://localhost:8009/api/v1/test/health
 #       docker compose down            # keep volumes (vendor cache, etc.)
 #       docker compose down -v         # wipe volumes (slow next boot)
 # =============================================================================
@@ -40,7 +40,7 @@ services:
     healthcheck:
       # Use 127.0.0.1 explicitly: nginx listens on IPv4 only, but BusyBox wget
       # in alpine resolves "localhost" to ::1 first which would refuse.
-      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8000/api/v1/health || exit 1']
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:8000/api/v1/test/health || exit 1']
       interval: 30s
       timeout: 5s
       retries: 5

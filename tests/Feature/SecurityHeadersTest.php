@@ -13,7 +13,7 @@ declare(strict_types=1);
 */
 
 it('sets the security headers on a successful response', function (): void {
-    $response = $this->getJson('/api/v1/health')->assertOk();
+    $response = $this->getJson('/api/v1/test/health')->assertOk();
 
     expect($response->headers->get('X-Content-Type-Options'))->toBe('nosniff')
         ->and($response->headers->get('X-Frame-Options'))->toBe('DENY')

@@ -45,7 +45,7 @@ final class RateLimitServiceProvider extends ServiceProvider
             return Limit::perMinute($perMinute)->by('ip:'.$request->ip());
         });
 
-        // Public, unauthenticated /api/v1/health and /api/v1/ready -- per
+        // Public, unauthenticated /api/v1/test/health and /api/v1/test/ready -- per
         // IP, looser ceiling because monitoring agents poll these often.
         RateLimiter::for('public', function (Request $request): Limit {
             $perMinute = (int) config('rate_limit.public_per_minute', 120);
