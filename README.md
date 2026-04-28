@@ -27,7 +27,7 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 ## Phase status
 
 - [x] **Phase 1 — Scaffold + tooling skeleton** (`/api/v1/health`, force-JSON, error envelope, pint/phpstan/pest)
-- [ ] Phase 2 — DB connection + `users` migration + Eloquent model
+- [x] **Phase 2 — DB connection + `users` migration + Eloquent model** (MySQL `test`, `App\Domain\User\Models\User`, `UserResource`, factory, soft-delete + uuid/email unique)
 - [ ] Phase 3 — Docker compose, nginx, joined to `bbm` network as `test_api_webserver`
 - [ ] Phase 4 — JWT verification middleware (Entra JWKS, no DB)
 - [ ] Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/me`
