@@ -10,6 +10,10 @@ parameters:
     treatPhpDocTypesAsCertain: false
     reportUnmatchedIgnoredErrors: false
     ignoreErrors:
-        # Pest closures bind $this to TestCase at runtime; phpstan can't see that.
+        # Pest closures bind $this to TestCase at runtime, and beforeEach()
+        # legitimately uses dynamic properties on TestCall/TestCase. PHPStan
+        # can't see either pattern; suppress per-file in tests/* only.
         - identifier: method.notFound
+          path: tests/*
+        - identifier: property.notFound
           path: tests/*

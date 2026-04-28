@@ -89,6 +89,21 @@ services:
       BROADCAST_CONNECTION: log
       MAIL_MAILER: log
 
+      # ---- JWT verification (Phase 4) ----
+      # Empty values cause protected routes to 503 auth_not_configured. Fill
+      # via your shell env or a docker-compose.override.yml; do NOT commit
+      # tenant-specific values here.
+      JWT_JWKS_URI: ${JWT_JWKS_URI:-}
+      JWT_ISSUER: ${JWT_ISSUER:-}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-}
+      JWT_LEEWAY: ${JWT_LEEWAY:-30}
+      JWT_JWKS_CACHE_TTL: ${JWT_JWKS_CACHE_TTL:-3600}
+      JWT_HTTP_TIMEOUT: ${JWT_HTTP_TIMEOUT:-5}
+      JWT_UUID_CLAIM: ${JWT_UUID_CLAIM:-sub}
+      JWT_EMAIL_CLAIM: ${JWT_EMAIL_CLAIM:-email}
+      JWT_FIRST_NAME_CLAIM: ${JWT_FIRST_NAME_CLAIM:-given_name}
+      JWT_LAST_NAME_CLAIM: ${JWT_LAST_NAME_CLAIM:-family_name}
+
       # ---- Composer ----
       COMPOSER_ALLOW_SUPERUSER: '1'
       COMPOSER_NO_INTERACTION: '1'

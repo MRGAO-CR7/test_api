@@ -32,5 +32,16 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <!-- JWT verification: tests bind a stub JwksProvider, but the
+             config still needs the issuer/audience to validate tokens. -->
+        <env name="JWT_JWKS_URI" value="https://test-idp.invalid/jwks"/>
+        <env name="JWT_ISSUER" value="https://test-idp.invalid/"/>
+        <env name="JWT_AUDIENCE" value="api://test_api"/>
+        <env name="JWT_LEEWAY" value="30"/>
+        <env name="JWT_UUID_CLAIM" value="sub"/>
+        <env name="JWT_EMAIL_CLAIM" value="email"/>
+        <env name="JWT_FIRST_NAME_CLAIM" value="given_name"/>
+        <env name="JWT_LAST_NAME_CLAIM" value="family_name"/>
     </php>
 </phpunit>

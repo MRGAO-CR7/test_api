@@ -29,7 +29,7 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 - [x] **Phase 1 — Scaffold + tooling skeleton** (`/api/v1/health`, force-JSON, error envelope, pint/phpstan/pest)
 - [x] **Phase 2 — DB connection + `users` migration + Eloquent model** (MySQL `test`, `App\Domain\User\Models\User`, `UserResource`, factory, soft-delete + uuid/email unique)
 - [x] **Phase 3 — Docker compose + nginx, joined to `bbm`** (`test_api_webserver:8000` ↔ host `:8009`, php-fpm 8.4 alpine, MySQL via bbm DNS `docker-mysql-1`, healthcheck green)
-- [ ] Phase 4 — JWT verification middleware (Entra JWKS, no DB)
+- [x] **Phase 4 — JWT verification middleware** (Entra JWKS, JwksProvider interface + cache + rotation retry, AuthClaims DTO with claim mapping, `auth.jwt` middleware alias, temp `/api/v1/_debug/whoami` for verification)
 - [ ] Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/me`
 - [ ] Phase 6 — Hardening (error mapping, request id, CORS, throttle, ready probe)
 
@@ -127,6 +127,45 @@ What compose does:
 | `composer lint:fix` | `pint` (rewrites in place) |
 | `composer analyse` | `phpstan analyse` (level 8) |
 | `composer check` | lint + analyse + test (CI gate) |
+
+## Auth (Phase 4)
+
+This service authenticates each request by locally verifying an external JWT.
+**No call to `auth_service` happens on the request path** — public keys are
+fetched once via JWKS, cached, and rotated on demand.
+
+Stable error codes (returned in `BffErrorBody.code`) — keep stable for the SPA:
+
+| HTTP | `code`                | Meaning                                                   |
+| ---- | --------------------- | --------------------------------------------------------- |
+| 401  | `missing_bearer`      | No `Authorization: Bearer …` header                       |
+| 401  | `token_expired`       | `exp` past (with leeway)                                  |
+| 401  | `token_not_yet_valid` | `nbf` / `iat` in the future (with leeway)                 |
+| 401  | `iss_mismatch`        | `iss` does not match `JWT_ISSUER`                         |
+| 401  | `aud_mismatch`        | `JWT_AUDIENCE` not in token's `aud`                       |
+| 401  | `signature_invalid`   | bad signature, even after a JWKS rotation retry           |
+| 401  | `alg_not_allowed`     | `alg` header not in the configured allow-list             |
+| 401  | `missing_claim`       | A required claim (uuid / email) missing or empty          |
+| 401  | `malformed_jwt`       | Token did not parse as a JWT                              |
+| 503  | `auth_not_configured` | `JWT_JWKS_URI` is not set — operator problem, not client  |
+
+> The 503 split is deliberate: the BFF must not log a user out on
+> `auth_not_configured`. `401` means the user's session is bad; `503` means
+> the API is broken.
+
+Required env (see `.env.example`):
+
+```dotenv
+JWT_JWKS_URI=https://<tenant>.ciamlogin.com/<tenant-id>/discovery/v2.0/keys
+JWT_ISSUER=https://<tenant>.ciamlogin.com/<tenant-id>/v2.0
+JWT_AUDIENCE=api://test_api
+
+# Override per env if your IdP uses different claim names.
+JWT_UUID_CLAIM=sub
+JWT_EMAIL_CLAIM=email
+```
+
+Until those three are filled in, every protected route 503s — by design.
 
 ## Design rules (read before contributing)
 
