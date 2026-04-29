@@ -26,7 +26,7 @@ use App\Domain\User\Models\User;
  *     soft-deleted user, add an explicit `findTrashedByUuid` rather than
  *     widening the meaning of `findByUuid`.
  */
-interface UserRepository
+interface UserRepositoryInterface
 {
     /**
      * @return User|null null if the uuid is unknown OR the row is soft-deleted

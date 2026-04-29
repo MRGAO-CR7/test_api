@@ -36,7 +36,7 @@ use Throwable;
  *   - Any HTTP / parsing error becomes a generic `signature_invalid` to the
  *     caller — we never leak issuer-side error details into client responses.
  */
-final class JwksClient implements JwksProvider
+final class JwksClient implements JwksProviderInterface
 {
     /**
      * @param  array{jwks_uri: ?string, algorithms: list<string>, cache_ttl: int, http_timeout: int}  $config

@@ -6,11 +6,11 @@ namespace Tests\Support\User;
 
 use App\Domain\User\DTOs\AuthClaims;
 use App\Domain\User\Models\User;
-use App\Domain\User\Repositories\UserRepository;
+use App\Domain\User\Repositories\UserRepositoryInterface;
 use Illuminate\Support\Carbon;
 
 /**
- * In-memory UserRepository for unit tests around UserProvisioner.
+ * In-memory UserRepositoryInterface for unit tests around UserProvisioner.
  *
  * Records every call so tests can assert *which* repository methods the
  * provisioner exercised (e.g. "exactly one INSERT, one TOUCH" for the JIT
@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
  * call (see UserProvisionerTest). The class is otherwise tightly scoped to
  * the test layer and not part of the production surface area.
  */
-class FakeUserRepository implements UserRepository
+class FakeUserRepository implements UserRepositoryInterface
 {
     /** @var array<int, User> */
     public array $created = [];

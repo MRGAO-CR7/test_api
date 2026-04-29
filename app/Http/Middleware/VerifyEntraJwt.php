@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
-use App\Support\Audit\AuditLog;
+use App\Support\Audit\AuditLoggerInterface;
 use App\Support\Http\ApiErrorEnvelope;
-use App\Support\Jwt\EntraJwtVerifier;
 use App\Support\Jwt\Exceptions\InvalidJwtException;
+use App\Support\Jwt\JwtVerifierInterface;
 use Closure;
 use Illuminate\Http\Request;
 use JsonException;
@@ -18,9 +18,10 @@ use Symfony\Component\HttpFoundation\Response;
  *
  *   1. Pull the bearer token off the `Authorization` header. Anything else
  *      is a 401 with a stable machine code.
- *   2. Hand the token to `EntraJwtVerifier`. Any verification failure is
- *      surfaced as a 401 with the verifier's `errorCode` (token_expired,
- *      iss_mismatch, …) so the SPA can react meaningfully.
+ *   2. Hand the token to the bound `JwtVerifierInterface` (production: `EntraJwtVerifier`).
+ *      Any verification failure is surfaced as a 401 with the verifier's
+ *      `errorCode` (token_expired, iss_mismatch, …) so the SPA can react
+ *      meaningfully.
  *   3. On success, attach the typed `AuthClaims` DTO to the request under
  *      the `auth.claims` attribute. Phase 5's `ResolveCurrentUser` reads
  *      this and turns it into a `User` row.
@@ -33,14 +34,15 @@ use Symfony\Component\HttpFoundation\Response;
 final class VerifyEntraJwt
 {
     public function __construct(
-        private readonly EntraJwtVerifier $verifier,
+        private readonly JwtVerifierInterface $verifier,
+        private readonly AuditLoggerInterface $audit,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
         $token = self::extractBearer($request);
         if ($token === null) {
-            AuditLog::authFailed('missing_bearer');
+            $this->audit->authFailed('missing_bearer');
 
             return ApiErrorEnvelope::unauthorized('missing_bearer', 'Missing Authorization: Bearer header.');
         }
@@ -52,7 +54,7 @@ final class VerifyEntraJwt
             // signature / issuer / audience mismatches without keeping the
             // token itself. The header + selected claims are unsigned base64
             // segments anyway -- no secret leaks here.
-            AuditLog::authFailed($e->errorCode, self::tokenDebug($token));
+            $this->audit->authFailed($e->errorCode, self::tokenDebug($token));
 
             // `auth_not_configured` is an operator problem, not a client one
             // — surface it as 503 so the BFF can distinguish it from a real

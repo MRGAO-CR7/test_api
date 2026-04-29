@@ -29,8 +29,8 @@ Browser  ──►  test_frontend (BFF, :3000)  ──►  auth_service (:8008) 
 - [x] **Phase 1 — Scaffold + tooling skeleton** (`/api/v1/test/health`, force-JSON, error envelope, pint/phpstan/pest)
 - [x] **Phase 2 — DB connection + `users` migration + Eloquent model** (MySQL `test`, `App\Domain\User\Models\User`, `UserResource`, factory, soft-delete + uuid/email unique)
 - [x] **Phase 3 — Docker compose + nginx, joined to `bbm`** (`test_api_webserver:8000` ↔ host `:8009`, php-fpm 8.4 alpine, MySQL via bbm DNS `docker-mysql-1`, healthcheck green)
-- [x] **Phase 4 — JWT verification middleware** (Entra JWKS, JwksProvider interface + cache + rotation retry, AuthClaims DTO with claim mapping, `auth.jwt` middleware alias, temp `/api/v1/_debug/whoami` for verification)
-- [x] **Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/test/me`** (UserRepository contract + Eloquent impl, UserProvisioner with race-safe upsert, `auth.user` middleware aliasing `ResolveCurrentUser`, MeController + UpdateMeRequest, `_debug/whoami` removed, 43 tests / 133 assertions green)
+- [x] **Phase 4 — JWT verification middleware** (Entra JWKS, JwksProviderInterface + cache + rotation retry, AuthClaims DTO with claim mapping, `auth.jwt` middleware alias, temp `/api/v1/_debug/whoami` for verification)
+- [x] **Phase 5 — JIT user provisioning + `GET/PATCH /api/v1/test/me`** (UserRepositoryInterface contract + Eloquent impl, UserProvisioner with race-safe upsert, `auth.user` middleware aliasing `ResolveCurrentUser`, MeController + UpdateMeRequest, `_debug/whoami` removed, 43 tests / 133 assertions green)
 - [x] **Phase 6 — Hardening** (global exception → envelope mapping; `X-Request-Id` round-trip; `SecurityHeaders` middleware; tight CORS; per-uuid + per-IP rate limits with priority pinning; `/api/v1/test/ready` DB+JWKS probe; structured `audit` log channel; `.env.production.example`; 59 tests / 197 assertions green)
 
 ## Layout (target — built up across phases)
@@ -40,9 +40,10 @@ app/
 ├─ Domain/
 │  └─ User/
 │     ├─ Models/User.php                                  # P2
-│     ├─ Repositories/UserRepository.php                  # P5 (interface)
+│     ├─ Repositories/UserRepositoryInterface.php         # P5 (interface)
 │     ├─ Repositories/EloquentUserRepository.php          # P5 (default impl)
-│     ├─ Services/UserProvisioner.php                     # P5 (JIT)
+│     ├─ Services/{UserProvisionerInterface,UserProvisioner}.php          # P5 (JIT)
+│     ├─ Services/{UserProfileServiceInterface,DefaultUserProfileService}.php # P5 (profile writes)
 │     └─ DTOs/AuthClaims.php                              # P4
 ├─ Http/
 │  ├─ Controllers/Api/V1/HealthController.php             # P1
@@ -56,10 +57,10 @@ app/
 │  ├─ Requests/Api/V1/UpdateMeRequest.php                 # P5
 │  └─ Resources/UserResource.php                          # P2
 ├─ Support/
-│  ├─ Audit/AuditLog.php                                  # P6
-│  ├─ Http/ApiErrorEnvelope.php                           # P1
-│  ├─ Http/ExceptionRenderer.php                          # P6
-│  └─ Jwt/{JwksClient,EntraJwtVerifier}.php               # P4
+│  ├─ Audit/{AuditLoggerInterface,LogChannelAuditLogger}.php       # P6
+│  ├─ Http/ApiErrorEnvelope.php                                    # P1
+│  ├─ Http/ExceptionRenderer.php                                   # P6
+│  └─ Jwt/{JwksClient,JwksProviderInterface,EntraJwtVerifier,JwtVerifierInterface}.php # P4
 └─ Providers/
    ├─ JwtServiceProvider.php                              # P4
    ├─ RateLimitServiceProvider.php                        # P6
@@ -312,7 +313,7 @@ Every uncaught exception flows through `App\Support\Http\ExceptionRenderer` and 
 | `single` (default app) | `storage/logs/laravel.log` | Application logs. Every line carries `request_id` from `Log::withContext`. |
 | `audit` (separate) | `storage/logs/audit.log` | Structured one-line JSON per security event. Use a different retention / shipper policy from app logs. |
 
-Audit events emitted by `App\Support\Audit\AuditLog`:
+Audit events emitted via the `App\Support\Audit\AuditLoggerInterface` contract (default impl: `LogChannelAuditLogger`):
 
 | `event` | Trigger | Key fields |
 | ------- | ------- | ---------- |

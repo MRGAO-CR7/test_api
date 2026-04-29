@@ -9,7 +9,7 @@ use App\Domain\User\Models\User;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Default UserRepository backed by Eloquent + the `users` table.
+ * Default UserRepositoryInterface backed by Eloquent + the `users` table.
  *
  * Concurrency notes:
  *
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  *     last writer wins on every column, which is exactly the semantics we
  *     want for "what the most recent token said".
  */
-final class EloquentUserRepository implements UserRepository
+final class EloquentUserRepository implements UserRepositoryInterface
 {
     public function findByUuid(string $uuid): ?User
     {

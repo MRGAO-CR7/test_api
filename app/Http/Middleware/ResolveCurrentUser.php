@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Domain\User\DTOs\AuthClaims;
-use App\Domain\User\Services\UserProvisioner;
+use App\Domain\User\Services\UserProvisionerInterface;
 use App\Support\Http\ApiErrorEnvelope;
 use Closure;
 use Illuminate\Http\Request;
@@ -33,7 +33,7 @@ use Throwable;
 final class ResolveCurrentUser
 {
     public function __construct(
-        private readonly UserProvisioner $provisioner,
+        private readonly UserProvisionerInterface $provisioner,
     ) {}
 
     public function handle(Request $request, Closure $next): Response

@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Support\Jwt;
 
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
 use Firebase\JWT\Key;
 
 /**
- * Test double for JwksProvider that returns a fixed in-memory key set.
+ * Test double for JwksProviderInterface that returns a fixed in-memory key set.
  *
  * Tests can also call `setKeys()` to simulate key rotation between two
  * `getKeys()` calls — i.e. first call returns the "old" set, then after a
  * `flush()` the test bumps the keys to the "new" set. Used to assert that
  * the verifier transparently rotates.
  */
-final class ArrayJwksProvider implements JwksProvider
+final class ArrayJwksProvider implements JwksProviderInterface
 {
     private int $flushCount = 0;
 

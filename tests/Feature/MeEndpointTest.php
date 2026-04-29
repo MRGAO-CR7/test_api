@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Domain\User\Models\User;
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Jwt\ArrayJwksProvider;
 use Tests\Support\Jwt\JwtTestHelper;
@@ -19,7 +19,7 @@ use Tests\Support\Jwt\JwtTestHelper;
 |   auth.user -> JIT-creates / touches the local users row
 |   controller -> emits the UserResource shape
 |
-| We sign tokens with JwtTestHelper and stub the JwksProvider with our local
+| We sign tokens with JwtTestHelper and stub the JwksProviderInterface with our local
 | public key, exactly like AuthMiddlewareTest. No live network calls.
 |
 */
@@ -28,7 +28,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     $this->jwt = new JwtTestHelper;
-    $this->app->instance(JwksProvider::class, new ArrayJwksProvider($this->jwt->asKeySet()));
+    $this->app->instance(JwksProviderInterface::class, new ArrayJwksProvider($this->jwt->asKeySet()));
 });
 
 /**

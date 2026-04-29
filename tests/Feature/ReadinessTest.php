@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Support\Jwt\Exceptions\InvalidJwtException;
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
 use Firebase\JWT\Key;
 
 /*
@@ -12,13 +12,13 @@ use Firebase\JWT\Key;
 |--------------------------------------------------------------------------
 |
 | The readiness probe must reflect actual dependency state. We stub the
-| JwksProvider with happy / sad doubles to assert each branch.
+| JwksProviderInterface with happy / sad doubles to assert each branch.
 |
 */
 
 beforeEach(function (): void {
     // Default to a healthy JWKS so the probe can pass when we want it to.
-    $this->app->instance(JwksProvider::class, new class implements JwksProvider
+    $this->app->instance(JwksProviderInterface::class, new class implements JwksProviderInterface
     {
         /** @return array<string, Key> */
         public function getKeys(): array
@@ -40,7 +40,7 @@ it('returns 200 ready when DB and JWKS are healthy', function (): void {
 });
 
 it('returns 503 not_ready when JWKS is down', function (): void {
-    $this->app->instance(JwksProvider::class, new class implements JwksProvider
+    $this->app->instance(JwksProviderInterface::class, new class implements JwksProviderInterface
     {
         /** @return array<string, Key> */
         public function getKeys(): array
@@ -60,7 +60,7 @@ it('returns 503 not_ready when JWKS is down', function (): void {
 });
 
 it('returns 503 not_ready when JWKS yields an empty key set', function (): void {
-    $this->app->instance(JwksProvider::class, new class implements JwksProvider
+    $this->app->instance(JwksProviderInterface::class, new class implements JwksProviderInterface
     {
         /** @return array<string, Key> */
         public function getKeys(): array

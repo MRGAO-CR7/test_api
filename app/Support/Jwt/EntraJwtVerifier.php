@@ -17,7 +17,7 @@ use UnexpectedValueException;
 /**
  * Verifies a JWT against the configured issuer's JWKS and returns a typed
  * `AuthClaims` DTO. **Stateless and side-effect-free** apart from the cache
- * touched by JwksProvider.
+ * touched by JwksProviderInterface.
  *
  * Verification order — each step bails out with a specific `InvalidJwtException`:
  *
@@ -36,13 +36,13 @@ use UnexpectedValueException;
  *   4. We project the payload into `AuthClaims` via the configured
  *      claim-name mapping.
  */
-final class EntraJwtVerifier
+final class EntraJwtVerifier implements JwtVerifierInterface
 {
     /**
      * @param  array{issuer: ?string, audience: string|list<string>|null, algorithms: list<string>, leeway: int, claims: array{uuid: string, email: string, first_name: string, last_name: string}}  $config
      */
     public function __construct(
-        private readonly JwksProvider $jwks,
+        private readonly JwksProviderInterface $jwks,
         private readonly array $config,
     ) {}
 

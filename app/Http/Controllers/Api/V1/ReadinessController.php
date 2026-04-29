@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Support\Jwt\Exceptions\InvalidJwtException;
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -22,7 +22,7 @@ use Throwable;
  *
  *   - **Database**: a trivial `SELECT 1`. Catches DB outages, expired
  *     credentials, full disk on the writer, etc.
- *   - **JWKS endpoint**: ask `JwksProvider` for the current key set. The
+ *   - **JWKS endpoint**: ask `JwksProviderInterface` for the current key set. The
  *     provider already caches, so this is normally a sub-millisecond
  *     in-memory hit; on a cold cache it does one HTTP fetch which still
  *     completes in well under the typical k8s probe window.
@@ -58,7 +58,7 @@ final class ReadinessController
 {
     public function __construct(
         private readonly DatabaseManager $db,
-        private readonly JwksProvider $jwks,
+        private readonly JwksProviderInterface $jwks,
     ) {}
 
     public function __invoke(): JsonResponse

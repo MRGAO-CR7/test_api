@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Domain\User\DTOs\AuthClaims;
 use App\Support\Jwt\EntraJwtVerifier;
 use App\Support\Jwt\Exceptions\InvalidJwtException;
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
 use Firebase\JWT\Key;
 use Tests\Support\Jwt\ArrayJwksProvider;
 use Tests\Support\Jwt\JwtTestHelper;
@@ -15,7 +15,7 @@ use Tests\Support\Jwt\JwtTestHelper;
 | Unit tests for EntraJwtVerifier
 |--------------------------------------------------------------------------
 |
-| These exercise the verifier directly with a stub JwksProvider. No HTTP,
+| These exercise the verifier directly with a stub JwksProviderInterface. No HTTP,
 | no Laravel routing — we want each rejection reason wired to the right
 | stable error code.
 |
@@ -153,8 +153,8 @@ it('flushes the JWKS cache and retries once when keys rotate', function (): void
 
     $token = $newKeys->sign(JwtTestHelper::defaultClaims());
 
-    // Anonymous JwksProvider that flips its keyset on first flush().
-    $rotatingProvider = new class($oldKeys->asKeySet(), $newKeys->asKeySet()) implements JwksProvider
+    // Anonymous JwksProviderInterface that flips its keyset on first flush().
+    $rotatingProvider = new class($oldKeys->asKeySet(), $newKeys->asKeySet()) implements JwksProviderInterface
     {
         private int $flushes = 0;
 

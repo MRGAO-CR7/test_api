@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
 use Tests\Support\Jwt\ArrayJwksProvider;
 use Tests\Support\Jwt\JwtTestHelper;
 
@@ -23,10 +23,10 @@ use Tests\Support\Jwt\JwtTestHelper;
 beforeEach(function (): void {
     $this->jwt = new JwtTestHelper;
 
-    // Replace the bound JwksProvider with a stub that returns our local
+    // Replace the bound JwksProviderInterface with a stub that returns our local
     // public key. Because the provider is bound (not singleton) any verifier
     // instance built downstream will see this stub.
-    $this->app->instance(JwksProvider::class, new ArrayJwksProvider($this->jwt->asKeySet()));
+    $this->app->instance(JwksProviderInterface::class, new ArrayJwksProvider($this->jwt->asKeySet()));
 });
 
 it('returns 401 missing_bearer when there is no Authorization header', function (): void {

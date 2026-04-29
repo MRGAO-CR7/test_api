@@ -14,7 +14,7 @@ use Firebase\JWT\Key;
  * returns a locally-generated keypair, so the verifier can be exercised
  * without any HTTP traffic.
  */
-interface JwksProvider
+interface JwksProviderInterface
 {
     /**
      * @return array<string, Key> Keyed by `kid`.

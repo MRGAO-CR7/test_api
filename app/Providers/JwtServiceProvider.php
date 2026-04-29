@@ -6,7 +6,8 @@ namespace App\Providers;
 
 use App\Support\Jwt\EntraJwtVerifier;
 use App\Support\Jwt\JwksClient;
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
+use App\Support\Jwt\JwtVerifierInterface;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\ServiceProvider;
@@ -14,21 +15,24 @@ use Illuminate\Support\ServiceProvider;
 /**
  * Wires up the JWT verification stack.
  *
- *   JwksProvider (interface)
- *       └── JwksClient (default; HTTP + cache)
- *           └── used by EntraJwtVerifier
+ *   JwtVerifierInterface
+ *       └── EntraJwtVerifier (default)
+ *               └── JwksProviderInterface
+ *                       └── JwksClient (default; HTTP + cache)
  *
- * Tests bind a stub `JwksProvider` and the rest stays unchanged.
+ * Tests bind a stub `JwksProviderInterface` (or, for end-to-end use cases,
+ * a stub `JwtVerifierInterface` directly) and the rest of the pipeline
+ * stays unchanged.
  */
 final class JwtServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Bind (not singleton) so tests can swap the JwksProvider with a stub
+        // Bind (not singleton) so tests can swap the JwksProviderInterface with a stub
         // and the next resolution of EntraJwtVerifier picks it up. The
         // expensive bit (HTTP + parse) is memoised by the Laravel Cache
         // layer inside JwksClient, not by container reuse.
-        $this->app->bind(JwksProvider::class, function ($app): JwksClient {
+        $this->app->bind(JwksProviderInterface::class, function ($app): JwksClient {
             /** @var array{jwks_uri: ?string, algorithms: list<string>, cache_ttl: int, http_timeout: int} $cfg */
             $cfg = [
                 'jwks_uri' => config('auth_jwt.jwks_uri'),
@@ -44,7 +48,11 @@ final class JwtServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->bind(EntraJwtVerifier::class, function ($app): EntraJwtVerifier {
+        // Bind the verifier behind its interface. Middleware and controllers
+        // should depend on JwtVerifierInterface, never on EntraJwtVerifier
+        // directly, so swapping issuers (or stubbing in tests) is a
+        // one-line change.
+        $this->app->bind(JwtVerifierInterface::class, function ($app): EntraJwtVerifier {
             /** @var array{issuer: ?string, audience: string|list<string>|null, algorithms: list<string>, leeway: int, claims: array{uuid: string, email: string, first_name: string, last_name: string}} $cfg */
             $cfg = [
                 'issuer' => config('auth_jwt.issuer'),
@@ -59,7 +67,7 @@ final class JwtServiceProvider extends ServiceProvider
                 ]),
             ];
 
-            return new EntraJwtVerifier($app->make(JwksProvider::class), $cfg);
+            return new EntraJwtVerifier($app->make(JwksProviderInterface::class), $cfg);
         });
     }
 }

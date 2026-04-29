@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Support\Jwt\JwksProvider;
+use App\Support\Jwt\JwksProviderInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\RateLimiter;
 use Tests\Support\Jwt\ArrayJwksProvider;
@@ -23,7 +23,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     $this->jwt = new JwtTestHelper;
-    $this->app->instance(JwksProvider::class, new ArrayJwksProvider($this->jwt->asKeySet()));
+    $this->app->instance(JwksProviderInterface::class, new ArrayJwksProvider($this->jwt->asKeySet()));
 
     // Drop the per-user ceiling for this test only.
     config()->set('rate_limit.api_user_per_minute', 3);

@@ -6,7 +6,7 @@ namespace App\Domain\User\Services;
 
 use App\Domain\User\DTOs\AuthClaims;
 use App\Domain\User\Models\User;
-use App\Domain\User\Repositories\UserRepository;
+use App\Domain\User\Repositories\UserRepositoryInterface;
 use Illuminate\Database\QueryException;
 
 /**
@@ -35,10 +35,10 @@ use Illuminate\Database\QueryException;
  *   - This service NEVER calls auth_service. The whole point of JIT is to
  *     stay fully stateless w.r.t. the auth issuer.
  */
-final class UserProvisioner
+final class UserProvisioner implements UserProvisionerInterface
 {
     public function __construct(
-        private readonly UserRepository $users,
+        private readonly UserRepositoryInterface $users,
     ) {}
 
     public function provision(AuthClaims $claims): User

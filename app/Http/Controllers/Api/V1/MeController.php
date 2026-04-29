@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\User\Models\User;
-use App\Domain\User\Repositories\UserRepository;
+use App\Domain\User\Services\UserProfileServiceInterface;
 use App\Http\Requests\Api\V1\UpdateMeRequest;
 use App\Http\Resources\UserResource;
-use App\Support\Audit\AuditLog;
 use Illuminate\Http\Request;
 use LogicException;
 
@@ -26,11 +25,14 @@ use LogicException;
  *     JWT (via the `auth.user` middleware).
  *   - It does NOT run any auth check itself -- by the time we get here,
  *     `auth.jwt` and `auth.user` have already produced a `User`.
+ *   - It does NOT know about repositories or the audit log. Profile
+ *     write rules (snapshot + persist + audit) live behind
+ *     `UserProfileServiceInterface`; this class is just the HTTP boundary.
  */
 final class MeController
 {
     public function __construct(
-        private readonly UserRepository $users,
+        private readonly UserProfileServiceInterface $profile,
     ) {}
 
     public function show(Request $request): UserResource
@@ -40,25 +42,12 @@ final class MeController
 
     public function update(UpdateMeRequest $request): UserResource
     {
-        $user = $this->currentUser($request);
-
-        // Snapshot only the columns we are allowed to mutate; that's also
-        // exactly the set the audit log cares about. Doing this BEFORE
-        // updateProfile keeps the diff calculation honest.
-        $before = $user->only(['first_name', 'last_name', 'email']);
-
-        $updated = $this->users->updateProfile(
-            $user,
-            $request->validated(),
+        return new UserResource(
+            $this->profile->updateOwnProfile(
+                $this->currentUser($request),
+                $request->validated(),
+            ),
         );
-
-        AuditLog::profileUpdated(
-            uuid: $updated->uuid,
-            before: $before,
-            after: $updated->only(['first_name', 'last_name', 'email']),
-        );
-
-        return new UserResource($updated);
     }
 
     /**
@@ -69,8 +58,6 @@ final class MeController
     {
         $user = $request->attributes->get('auth.user');
         if (! $user instanceof User) {
-            // Defensive: the only way to reach this is misordering of
-            // middlewares. Throw rather than serve a half-broken response.
             throw new LogicException(
                 'auth.user middleware must run before MeController.',
             );

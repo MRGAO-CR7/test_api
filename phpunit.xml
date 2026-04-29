@@ -33,7 +33,7 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
 
-        <!-- JWT verification: tests bind a stub JwksProvider, but the
+        <!-- JWT verification: tests bind a stub JwksProviderInterface, but the
              config still needs the issuer/audience to validate tokens. -->
         <env name="JWT_JWKS_URI" value="https://test-idp.invalid/jwks"/>
         <env name="JWT_ISSUER" value="https://test-idp.invalid/"/>
