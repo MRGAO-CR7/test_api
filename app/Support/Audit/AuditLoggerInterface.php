@@ -38,6 +38,19 @@ interface AuditLoggerInterface
     public function profileUpdated(string $uuid, array $before, array $after): void;
 
     /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function todoCreated(int $id, array $attributes): void;
+
+    /**
+     * @param  array<string, mixed>  $before
+     * @param  array<string, mixed>  $after
+     */
+    public function todoUpdated(int $id, array $before, array $after): void;
+
+    public function todoDeleted(int $id): void;
+
+    /**
      * @param  array<string, mixed>  $context
      */
     public function serverError(string $exceptionClass, string $message, array $context = []): void;

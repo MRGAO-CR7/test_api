@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\ReadinessController;
+use App\Http\Controllers\Api\V1\TodoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -45,5 +46,13 @@ Route::prefix('v1/test')->name('v1.')->group(function (): void {
     Route::middleware(['auth.jwt', 'auth.user', 'throttle:api_user'])->group(function (): void {
         Route::get('/me', [MeController::class, 'show'])->name('me.show');
         Route::patch('/me', [MeController::class, 'update'])->name('me.update');
+
+        Route::prefix('todos')->name('todos.')->group(function (): void {
+            Route::get('/', [TodoController::class, 'index'])->name('index');
+            Route::post('/', [TodoController::class, 'store'])->name('store');
+            Route::get('{todo}', [TodoController::class, 'show'])->name('show')->whereNumber('todo');
+            Route::patch('{todo}', [TodoController::class, 'update'])->name('update')->whereNumber('todo');
+            Route::delete('{todo}', [TodoController::class, 'destroy'])->name('destroy')->whereNumber('todo');
+        });
     });
 });

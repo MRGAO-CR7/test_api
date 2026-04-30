@@ -14,7 +14,7 @@ use Illuminate\Log\LogManager;
  * Each record is normalised to:
  *
  *     {
- *       "event": "auth.failed" | "me.updated" | "server.error",
+ *       "event": "auth.failed" | "me.updated" | "todo.created" | "todo.updated" | "todo.deleted" | "server.error",
  *       "request_id": "...",
  *       "ip": "1.2.3.4",
  *       "ua": "...",
@@ -61,6 +61,43 @@ final class LogChannelAuditLogger implements AuditLoggerInterface
         $this->write('me.updated', [
             'uuid' => $uuid,
             'changes' => $changed,
+        ]);
+    }
+
+    public function todoCreated(int $id, array $attributes): void
+    {
+        $this->write('todo.created', [
+            'id' => $id,
+            'attributes' => $attributes,
+        ]);
+    }
+
+    public function todoUpdated(int $id, array $before, array $after): void
+    {
+        // Only diff the keys that actually changed -- a no-op PATCH should
+        // not pollute the audit trail with full snapshots.
+        $changed = [];
+        foreach ($after as $key => $newValue) {
+            $oldValue = $before[$key] ?? null;
+            if ($oldValue !== $newValue) {
+                $changed[$key] = ['from' => $oldValue, 'to' => $newValue];
+            }
+        }
+
+        if ($changed === []) {
+            return;
+        }
+
+        $this->write('todo.updated', [
+            'id' => $id,
+            'changes' => $changed,
+        ]);
+    }
+
+    public function todoDeleted(int $id): void
+    {
+        $this->write('todo.deleted', [
+            'id' => $id,
         ]);
     }
 
